@@ -1,5 +1,5 @@
 <?php
-// $Id: realname_content_profile.inc,v 1.1.2.4 2008/11/30 20:36:15 nancyw Exp $
+// $Id: realname_content_profile.inc,v 1.1.2.6 2009/07/07 15:33:44 nancyw Exp $
 /**
  * @file
  * Realname module support for Content Profile module.
@@ -57,7 +57,10 @@ function realname_content_profile_get_fields($current, $type) {
       }
       switch ($field_attributes['type']) {
         case 'text':
-          if (!$field_attributes['multiple']) {
+          if ($field_attributes['multiple']) {
+            drupal_set_message(t('The RealName module does not currently support fields with multiple values, such as @fld.', array('@fld' => $field_name)), 'warning');
+          }
+          else {
             $selected = array_key_exists($field_name, $current);
             $fields[$field_name] = array(
               'title' => $field_attributes['widget']['label'],
@@ -75,6 +78,15 @@ function realname_content_profile_get_fields($current, $type) {
   else {
     drupal_set_message(t('The !type content type has no fields to use.', array('!type' => $type)), 'error');
   }
+
+  if (variable_get('realname_use_title', FALSE)) {
+    $fields['title'] = array(
+      'title' => t('Node title'),
+      'weight' => isset($current['title']) ? $current['title']['weight'] : 0,
+      'selected' => array_key_exists('title', $current),
+      );
+  }
+
   return array('fields' => $fields, 'links' => $links);
 }
 

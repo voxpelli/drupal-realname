@@ -1,5 +1,5 @@
 <?php
-// $Id: realname_content_profile.inc,v 1.1.2.6 2009/07/07 15:33:44 nancyw Exp $
+// $Id: realname_content_profile.inc,v 1.1.2.8 2010/05/26 20:34:45 nancyw Exp $
 /**
  * @file
  * Realname module support for Content Profile module.
@@ -14,6 +14,7 @@ function content_profile_load_profile(&$account, $type = NULL) {
     return;
   }
   $fields = content_fields(NULL, $type);
+  
   foreach ($fields as $field_name => $field_attributes) {
     if (isset($profile->$field_name)) {
       $values = array();
@@ -40,6 +41,8 @@ function content_profile_load_profile(&$account, $type = NULL) {
       }
     }
   }
+  
+//  $account->title = $profile->title; // http://drupal.org/node/606364
 }
 
 function realname_content_profile_get_types() {

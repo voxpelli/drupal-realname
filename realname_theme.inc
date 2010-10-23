@@ -1,5 +1,5 @@
 <?php
-// $Id: realname_theme.inc,v 1.2.4.17 2009/03/13 14:23:01 nancyw Exp $
+// $Id: realname_theme.inc,v 1.2.4.20 2010/05/26 20:34:45 nancyw Exp $
 
 /**
  * @file
@@ -40,7 +40,7 @@ function realname_username($object, $options = array()) {
     'not_ver' => variable_get('realname_notver', TRUE),
 //    'allowed_tags' => array('em', 'i', 'u', 'strong', 'b'),
     );
-  $options = array_merge($defaults, $options);
+  $options = array_merge($defaults, (array)$options);
 
   // If we have a user id but no realname, then make one.
   if ($object->uid && empty($object->realname) && user_access('use realname')) {
@@ -74,6 +74,9 @@ function realname_username($object, $options = array()) {
             // Use empty here because NULL is not set.
             $pic = variable_get('realname_user_level_'. $rid, '');
             $roles[$rid] = empty($pic) ? '' : file_create_url($pic);
+            // Make a nice css value out of the role title
+            $l_opts['attributes']['class'] .= form_clean_id(strtolower($role)) . ' ';
+
           }
           if ($roles[$rid]) {
             $name .= '<img src="'. $roles[$rid] .'" alt="'. $role .'" title="'. $role .'" />';
@@ -81,7 +84,7 @@ function realname_username($object, $options = array()) {
           }
         }
       }
-      if (isset($object->homepage) && $options['homepage']) {
+      if (!empty($object->homepage) && $options['homepage']) {
         $url = $object->homepage;
         $title = t("View user's home page.");
         if (variable_get('realname_nofollow', FALSE)) {

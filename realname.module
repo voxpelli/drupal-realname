@@ -1,15 +1,46 @@
 <?php
-// $Id: realname.module,v 1.4.4.54 2009/05/12 23:29:57 nancyw Exp $
+// $Id: realname.module,v 1.4.4.59 2010/05/26 21:10:01 nancyw Exp $
 
 /**
  * @file
  * The RealName module allows the admin to choose fields from the user profile
  * that will be used to add a "realname" element (method) to a user object.
  */
-  define('MODULE_VERSION', '$Id: realname.module,v 1.4.4.54 2009/05/12 23:29:57 nancyw Exp $');
+  define('MODULE_VERSION', '$Id: realname.module,v 1.4.4.59 2010/05/26 21:10:01 nancyw Exp $');
 
   if (module_exists('token')) {
     include_once(drupal_get_path('module', 'realname') .'/token_realname.inc');
+  }
+  
+  // This is a copy of D7's static function.
+  if (!function_exists('drupal_static')) {
+    function &drupal_static($name, $default_value = NULL, $reset = FALSE) {
+      static $data = array(), $default = array();
+      if (!isset($name)) {
+        // All variables are reset. This needs to be done one at a time so that
+        // references returned by earlier invocations of drupal_static() also get reset.
+        foreach ($default as $name => $value) {
+          $data[$name] = $value;
+        }
+        // As the function returns a reference, the return should always be a variable.
+        return $data;
+      }
+      if ($reset) {
+        // The reset means the default is loaded.
+        if (array_key_exists($name, $default)) {
+          $data[$name] = $default[$name];
+        }
+        else {
+          // Reset was called before a default is set and yet a variable must be returned.
+          return $data;
+        }
+      }
+      elseif (!array_key_exists($name, $data)) {
+        // Store the default value internally and also copy it to the reference to be returned.
+        $default[$name] = $data[$name] = $default_value;
+      }
+      return $data[$name];
+    }
   }
 
 //********************************************************************
@@ -144,6 +175,14 @@ function realname_menu() {
     'access arguments' => array('access content'),
     'type' => MENU_CALLBACK,
     );
+    
+  // Privatemsg intercept for recipient autocomplete.
+  $items['realname/privatemsg/autocomplete'] = array(
+    'title' => 'Realname Privatemsg autocomplete',
+    'access callback' => user_access('access private messages'),
+    'page callback' => 'realname_privatemsg_autocomplete',
+    'type' => MENU_CALLBACK,
+  );
  
   return $items;
 }
@@ -153,7 +192,9 @@ function realname_menu() {
  */
 function realname_menu_alter(&$callbacks) {
   $callbacks['user/%user_uid_optional']['title callback'] = 'realname_user_page_title';
-  $callbacks['user/%user_uid_optional']['page callback'] = 'realname_user_view';
+  if (!module_exists('delegator') && !module_exists('page_manager') && $callbacks['user/%user_uid_optional']['page callback'] == 'user_view') {
+    $callbacks['user/%user_uid_optional']['page callback'] = 'realname_user_view';
+  }
   $callbacks['user/%user_category/edit']['page callback'] = 'realname_user_edit';
   if (isset($callbacks['user/%user/track'])) {
     $callbacks['user/%user/track']['page callback'] = 'realname_tracker_page';
@@ -167,6 +208,26 @@ function realname_menu_alter(&$callbacks) {
   // Remove the core user_search, if requested.
   if (variable_get('realname_user_disable', FALSE) && isset($callbacks['search/user/%menu_tail'])) {
     unset($callbacks['search/user/%menu_tail']);
+  }
+}
+
+/**
+* Ask Delegator to use our version of the node page view instead of
+* Drupal's when falling back.
+*/
+function realname_delegator_override($type) {
+  // Continue to support the older delegator module by passing thru
+  // to the newer function:
+  return realname_page_manager_override($type);
+}
+
+/**
+* Ask Page Manager to use our version of the node page view instead of
+* Drupal's when falling back.
+*/
+function realname_page_manager_override($type) {
+  if ($type == 'user_view') {
+    return 'realname_user_view';
   }
 }
 
@@ -209,8 +270,13 @@ function realname_user_edit($account, $category = 'account') {
  * Intercept the user blog page.
  */
 function realname_blog_page($account) {
-  $output = blog_page_user($account);
-  drupal_set_title($title = t("@name's blog", array('@name' => $account->realname)));
+  if (module_exists('blogtitle')) {
+    $output = blogtitle_blog_page_user($account);
+  } else {
+    $output = blog_page_user($account);
+    drupal_set_title($title = t("@name's blog", array('@name' => $account->realname)));
+  }
+
   return $output;
 }
 
@@ -346,7 +412,7 @@ function realname_user($op, &$edit, &$account, $category = NULL) {
     case 'insert':
     case 'after_update':
       $account->realname = _realname_make_name($account);
-      // Try to update, if fail - try to insert.
+      // If we delete it first, then drupal_write_record is always an insert.
       db_query("DELETE FROM {realname} WHERE uid=%d", $account->uid);
       drupal_write_record('realname', $account);
   }
@@ -361,22 +427,15 @@ function realname_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
   if (!user_access('use realname')) {
     return;
   }
-
-  // NickSI: Yes, we will have another switch later but I would like to
-  // separate table update with other processing.
-  if (variable_get('realname_profile_module', NULL) == 'content_profile'  &&
-      is_content_profile($node->type)) {
-      // Do realnames table update if content_profile has been changed.
+  
+  // NickSI: Yes, we will have another switch later but I would like to separate table update with other processing
+  // Just delete the old nickname from the table. New one is automatically generated on next request.
+  if ( variable_get('realname_profile_module', NULL) == 'content_profile' && is_content_profile($node->type)) {
     switch ($op) {
       case 'update':
       case 'insert':
       case 'delete':
-        $realname->uid = $account->uid;
-        $realname->realname = _realname_make_name($account);
-        // try to update, if fail - try to insert
-        if (!drupal_write_record('realname', $realname,  'uid')) {
-          drupal_write_record('realname', $realname);
-        }           
+        db_query('DELETE FROM {realname} WHERE uid = %d', $node->uid);
     }
   }
 
@@ -524,6 +583,10 @@ function realname_form_alter(&$form, $form_state, $form_id) {
       $form['delete']['#weight'] = 99;
       $form['#submit'][] = '_realname_role_submit';
       break;
+      
+    case 'privatemsg_new':
+      $form['privatemsg']['recipient']['#autocomplete_path'] = 'realname/privatemsg/autocomplete';
+      break;
   }
 }
 
@@ -611,6 +674,35 @@ function realname_update_index() {
   }
 }
 
+/**
+ * Intercept Privatemsg autocomplete results for usernames.
+ */
+function realname_privatemsg_autocomplete($string) {
+  $names = explode(',', $string);
+  $names = array_map('trim', $names);
+  $search = array_pop($names);
+  if ($search != '') {
+    $sql = 'SELECT u.uid, u.name, r.realname FROM {users} u INNER JOIN {realname} r USING(uid) ';
+    $sql .= ' WHERE u.status <> 0 AND LOWER(r.realname) LIKE LOWER(\'%%%s%%\') AND ';
+    $sql .= variable_get('privatemsg_default_allow', 1) ? '(u.data NOT LIKE \'%%:16:"privatemsg_allow";i:0%%\' OR u.data IS NULL)' : 'u.data LIKE \'%%:16:"privatemsg_allow";i:1%%\'';
+    $sql .= ' ORDER BY r.realname ASC';
+    $result = db_query_range($sql, $search, 0, 10);
+    $prefix = count($names) ? implode(', ', $names) .', ' : '';
+    $matches = array();
+    while ($user = db_fetch_object($result)) {
+      $account = user_load(array('uid' => $user->uid));
+      $matches[$prefix . $user->name] = $user->realname;
+      if ($user->realname != $user->name) {
+        $matches[$prefix . $user->name] .= ' ('. $user->name .')';
+      }
+    }
+    drupal_json($matches);
+  }
+  else {
+    drupal_json(array()); // prevent Drupal autocomplete error message
+  }
+}
+
 //********************************************************************
 //* Module Functions
 //********************************************************************
@@ -626,7 +718,8 @@ function realname_update_index() {
  *   The retreived "real name" string.
  */
 function realname_make_name(&$account) {
-  static $users = array();
+  $users = &drupal_static('users',array());
+  $links = &drupal_static('links',array());
 
   // Return anonymous user right away.
   if ($account->uid == 0) {
@@ -639,16 +732,16 @@ function realname_make_name(&$account) {
     return $users[$account->uid];
   }
 
-  // Check DB next
-  $query = "SELECT realname from {realname} WHERE uid=%d";
-  $result = db_result(db_query($query, $account->uid));
-
-  if ($result) { // we've succeed
-    return $result;
-  }
-
   $result = _realname_make_name($account);
-  db_query("INSERT INTO {realname} (uid, realname) VALUES(%d, '%s')", $account->uid, $result);
+  if (empty($result)) {
+    return $account->name;
+  }
+  if (!db_result(db_query("SELECT uid FROM {realname} WHERE uid=%d", $account->uid))) { 
+    db_query("INSERT INTO {realname} (uid, realname) VALUES(%d, '%s')", $account->uid, $result);
+  }
+  else {
+    db_query("UPDATE {realname} SET realname='%s' where uid=%d", $result, $account->uid);
+  }
   return $result;
 }
 
@@ -663,9 +756,9 @@ function realname_make_name(&$account) {
  */
 function _realname_make_name(&$account) {
   static $fields, $pattern_saved, $homepage, $use_theme, $type, $module, $profile_privacy;
-  static $users = array();
-  static $links = array();
-  static $edit = array();
+  $users = &drupal_static('users',array());
+  $links = &drupal_static('links',array());
+  $edit = &drupal_static('edit',array());
 
   // Get our controlling variables (static makes it once per page load).
   if (!isset($fields)) {
@@ -700,7 +793,7 @@ function _realname_make_name(&$account) {
         drupal_set_message(t('The profile load function (!module) was not found.', array('!module' => $load_func)), 'error');
         return $account->name;
       }
-      module_invoke($module, 'load_profile', $account, $type);
+      $load_func($account, $type);
       if ($profile_privacy) {
         profile_privacy_user('load', $edit, $account);
       }
@@ -712,9 +805,9 @@ function _realname_make_name(&$account) {
       ++$i;
       $private = 'private_'. $name;
       // This will let you see that a user is using Profile Privacy.
-//      if (isset($account->{$private})) {
-//        drupal_set_message("$account->name ($account->uid) has marked the $name field as private.");
-//      }
+//    if (isset($account->{$private})) {
+//      drupal_set_message("$account->name ($account->uid) has marked the $name field as private.");
+//    }
       $private_field = isset($account->{$private}) ? $account->{$private} : FALSE;
       if (isset($account->$name) && !empty($account->$name) && !$private_field) {
         if (is_array($account->$name)) {
@@ -746,7 +839,7 @@ function _realname_make_name(&$account) {
   else {
     $string = $account->name;
   }
-  return $string;
+  return html_entity_decode(filter_xss_admin($string));
 }
 
 /**
@@ -802,47 +895,4 @@ function realname_ajax_autocomplete_user($string = '') {
   }
 
   drupal_json($matches);
-}
-
-/**
- * Batchable function used to rebuild realnames
- * Batch API does not for some reason pick'em up in realname.admin.inc
- */
-function _realname_rebuild_realnames(&$context) {
-  if (empty($context['sandbox'])) {
-    // Initiate multistep processing.
-    $context['sandbox']['progress'] = 0;
-    $context['sandbox']['current_user'] = 0;
-    $context['sandbox']['max'] = db_result(db_query('SELECT COUNT(DISTINCT uid) FROM {users}'));
-  }
-
-  // Process the next 20 users.
-  $limit = 20;
-  $result = db_query_range("SELECT u.uid, u.name, u.mail FROM {users} u WHERE uid >= %d ORDER BY uid ASC", $context['sandbox']['current_user'], 0, $limit);
-  while ($row = db_fetch_object($result)) {
-    $realname->uid = $row->uid;
-    $realname->realname = _realname_make_name($row);
-    // Try to update, if fail - try to insert.
-    if (!drupal_write_record('realname', $realname,  'uid')) {
-      drupal_write_record('realname', $realname);
-    }
-    $context['sandbox']['progress']++;
-    $context['sandbox']['current_user'] = $row->uid;
-  }
-
-  // Multistep processing : report progress.
-  if ($context['sandbox']['progress'] != $context['sandbox']['max']) {
-    $context['finished'] = $context['sandbox']['progress'] / $context['sandbox']['max'];
-  }
-}
-
-function _realname_rebuild_batch_finished($success, $results, $operations) {
-  if ($success) {
-    drupal_set_message(t('The realnames have been rebuilt.'));
-    variable_set('realname_recalculate', FALSE);
-    drupal_goto('admin/user/realname');
-  }
-  else {
-    drupal_set_message(t('The realanmes have not been properly rebuilt.'), 'error');
-  }
 }

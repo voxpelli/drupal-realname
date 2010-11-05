@@ -464,6 +464,12 @@ function realname_user($op, &$edit, &$account, $category = NULL) {
 
     case 'insert':
     case 'after_update':
+      if ($module = variable_get('realname_profile_module', NULL)) {
+        $module_info = realname_supported_modules($module);
+        if (isset($module_info['cache']) && !$module_info['cache']) {
+          return;
+        }
+      }
       $account->realname = _realname_make_name($account);
       // If we delete it first, then drupal_write_record is always an insert.
       db_query("DELETE FROM {realname} WHERE uid = %d", $account->uid);
@@ -763,6 +769,47 @@ function realname_privatemsg_autocomplete($string) {
 //* Module Functions
 //********************************************************************
 
+function _realname_include() {
+  static $not_run = TRUE;
+
+  if ($not_run) {
+    $path = drupal_get_path('module', 'realname');
+    if (module_exists('content_profile')) {
+      require_once("$path/realname_content_profile.inc");
+    }
+    if (module_exists('profile')) {
+      require_once("$path/realname_profile.inc");
+    }
+    $not_run = TRUE;
+  }
+}
+
+function realname_supported_modules($module = NULL) {
+  static $modules;
+
+  _realname_include();
+
+  if (!isset($modules)) {
+    foreach (module_implements('realname') as $value) {
+      $options = call_user_func($value .'_realname');
+      if (isset($options) && is_array($options)) {
+        $modules[$value] = $options;
+      }
+    }
+  }
+
+  if ($module) {
+    if (array_key_exists($module, $modules)) {
+      return $modules[$module];
+    }
+    else {
+      return FALSE;
+    }
+  }
+
+  return $modules;
+}
+
 /**
  * Retreive calculated user name. Try static cache first, DB next and on failure call
  * helper function to calculate realname and populate DB.
@@ -788,7 +835,13 @@ function realname_make_name(&$account) {
     return $users[$account->uid];
   }
 
+  if ($module = variable_get('realname_profile_module', NULL)) {
+    $module_info = realname_supported_modules($module);
+  }
   $result = _realname_make_name($account);
+  if (isset($module_info['cache']) && !$module_info['cache']) {
+    return $result;
+  }
   if (empty($result)) {
     return $account->name;
   }
@@ -811,41 +864,65 @@ function realname_make_name(&$account) {
  *   The constructed "real name" string.
  */
 function _realname_make_name(&$account) {
-  static $fields, $pattern_saved, $homepage, $use_theme, $type, $module, $profile_privacy;
-  $users = &drupal_static('users',array());
+  static $fields, $pattern_saved, $homepage, $use_theme, $type, $module, $module_info, $profile_privacy;
   $links = &drupal_static('links',array());
   $edit = &drupal_static('edit',array());
 
   // Get our controlling variables (static makes it once per page load).
-  if (!isset($fields)) {
-    $fields = variable_get('realname_fields', array());
-    // Are there any fields assigned yet?
-    if (!$fields) {
-      // No, so just return the name.
-      return $account->name;
-    }
-    $pattern_saved = variable_get('realname_pattern', ' ');
-    $homepage = variable_get('realname_homepage', '');
-    $use_theme = variable_get('realname_theme', TRUE);
+  if (!isset($module)) {
     $module = variable_get('realname_profile_module', NULL);
-    $type = variable_get('realname_profile_type', NULL);
-    $profile_privacy = module_exists('profile_privacy');
-    if ($module && module_exists($module)) {
-      include_once(drupal_get_path('module', 'realname') . '/realname_' . $module . '.inc');
-    }
-    else {
-      drupal_set_message(t('No module is available for RealName.'), 'error');
-      return $account->name;
+    if ($module) {
+      $module_info = realname_supported_modules($module);
+      if (!$module_info || !module_exists($module)) {
+        unset($module_info);
+        $module = FALSE;
+      }
+      else {
+        if (isset($module_info['file'])) {
+          $path = !empty($module_info['path']) ? $module_info['path'] : drupal_get_path('module', $module);
+          require_once($path .'/'. $module_info['file']);
+        }
+        if (!isset($module_info['fields']) || $module_info['fields']) {
+          $fields = variable_get('realname_fields', array());
+          // Are there any fields assigned yet?
+          if (!$fields) {
+            // No, so just return the name.
+            return $account->name;
+          }
+          $pattern_saved = variable_get('realname_pattern', ' ');
+        }
+        else {
+          $fields = FALSE;
+        }
+        $homepage = variable_get('realname_homepage', '');
+        $use_theme = variable_get('realname_theme', TRUE);
+        if (isset($module_info['type']) && $module_info['type']) {
+          $type = variable_get('realname_profile_type', NULL);
+        }
+        else {
+          $type = FALSE;
+        }
+        $profile_privacy = module_exists('profile_privacy');
+      }
     }
   }
-  $pattern = $pattern_saved;
 
-  // Has the module been set up yet?
-  if ($fields) {
+  if (!$module) {
+    drupal_set_message(t('No module is available for RealName.'), 'error');
+    $string = $account->name;
+  }
+  else if (is_array($fields) && empty($fields)) {
+    $string = $account->name;
+  }
+  else if ($fields === FALSE) {
+    $string = module_invoke($module, 'realname_make', $account);
+  }
+  else if ($fields) {
+    $pattern = $pattern_saved;
+
     // Has the profile been loaded?
     if (!isset($account->{key($fields)})) {
-      $load_func = $module . '_load_profile';
-      if (!function_exists($load_func)) {
+      if (!module_hook($module, 'load_profile')) {
         drupal_set_message(t('The profile load function (!module) was not found.', array('!module' => $load_func)), 'error');
         return $account->name;
       }
@@ -890,11 +967,12 @@ function _realname_make_name(&$account) {
     }
 
     $string = trim(strtr($pattern, $stuff));
-    $users[$account->uid] = $string;
   }
-  else {
+
+  if (empty($string)) {
     $string = $account->name;
   }
+
   return html_entity_decode(filter_xss_admin($string));
 }
 

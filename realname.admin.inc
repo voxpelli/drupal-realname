@@ -215,7 +215,6 @@ function realname_admin_bypass_submit($form, &$form_state) {
 function realname_admin_module($form_state) {
   $form = array();
   // Get the list of modules we support.
-  include_once(drupal_get_path('module', 'realname') .'/realname_supported.inc');
   $supported_modules = realname_supported_modules();
 
   $choices = $show_types = array();
@@ -274,9 +273,13 @@ function realname_admin_module_submit($form, &$form_state) {
 
     $show_types = $form_state['values']['show_types'];
     if ($show_types[$module]) {
-      include_once(drupal_get_path('module', 'realname') .'/realname_'. $module .'.inc');
-      // This module uses types, so let's see what types are allowed.
-      $types = call_user_func('realname_'. $module .'_get_types');
+      $module_info = realname_supported_modules($module);
+      if (isset($module_info['file'])) {
+        $path = !empty($module_info['path']) ? $module_info['path'] : drupal_get_path('module', $module);
+        require_once($path .'/'. $module_info['file']);
+      }
+        // This module uses types, so let's see what types are allowed.
+      $types = (array) module_invoke($module, 'realname_get_types');
       if (count($types) > 1) {
         $form_state['storage']['types'] = $types;
         return;
@@ -297,13 +300,28 @@ function realname_admin_module_submit($form, &$form_state) {
 
 function realname_admin_fields() {
   $form = array();
-  $current = variable_get('realname_fields', array());
   $module = variable_get('realname_profile_module', NULL);
-  $type = variable_get('realname_profile_type', NULL);
   // Do we have a module set yet?
   if (!$module) {
     drupal_goto('admin/user/realname/module');
   }
+
+  $module_info = $module ? realname_supported_modules($module) : NULL;
+  if (isset($module_info['fields']) && !$module_info['fields']) {
+    $form['heading'] = array(
+      '#type' => 'item',
+      '#value' => t("You are using the %module module to provide data and it doesn't utilize fields.", array('%module' => $module)),
+      );
+    return $form;
+  }
+
+  if (isset($module_info['file'])) {
+    $path = !empty($module_info['path']) ? $module_info['path'] : drupal_get_path('module', $module);
+    require_once($path .'/'. $module_info['file']);
+  }
+  $current = variable_get('realname_fields', array());
+  $type = (!isset($module_info['type']) || !$module_info['type']) ? variable_get('realname_profile_type', NULL) : NULL;
+  $profile_fields = (array) module_invoke($module, 'realname_get_fields', $current, $type);
 
   $what = t('You are using the %module module to provide fields.', array('%module' => $module));
   if ($type) {
@@ -315,8 +333,6 @@ function realname_admin_fields() {
     '#value' => $what,
   );
 
-  include_once(drupal_get_path('module', 'realname') .'/realname_'. $module .'.inc');
-  $profile_fields = call_user_func('realname_'. $module .'_get_fields', $current, $type);
   $fields = $profile_fields['fields'];
   uasort($fields, '_realname_sort');
   $links = $profile_fields['links'];

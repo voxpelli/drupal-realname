@@ -1,14 +1,35 @@
 <?php
-// $Id: realname_content_profile.inc,v 1.1.2.8 2010/05/26 20:34:45 nancyw Exp $
+// $Id$
+
 /**
  * @file
- * Realname module support for Content Profile module.
+ * Hooks provided by the RealName module.
  */
 
 /**
- * Implementation of hook_realname().
+ * @addtogroup hooks
+ * @{
  */
-function content_profile_realname() {
+
+ /**
+  * Define RealName support and options.
+  *
+  * This hook enables modules to register RealName support.
+  *
+  * @return
+  *   An array of options that the module support. The item is an associative array
+  *   that may contain the following key-value pairs:
+  *   - "name": Required. The name of the module.
+  *   - "types": Whether the module supports types.
+  *   - "fields": Whether the module uses fields.
+  *   - "file": A file that will be included before the module is used by RealName;
+  *     this allows callback functions to be in separate files. The file should
+  *     be relative to the implementing module's directory unless otherwise
+  *     specified by the "file path" option.
+  *   - "file path": The path to the folder containing the file specified in
+  *     "file". This defaults to the path to the module implementing the hook.
+  */
+function hook_realname() {
   return array(
     'name'   => 'Content Profile',
     'types'  => TRUE,
@@ -19,15 +40,19 @@ function content_profile_realname() {
 }
 
 /**
- * Implementation of hook_profile_load();
+ * Loads the profile fields.
+ *
+ * @param $account
+ *   An user object.
+ * @param $type
+ *   The type used - if supported by the module.
  */
-function content_profile_load_profile(&$account, $type = NULL) {
+function hook_load_profile(&$account, $type = NULL) {
   $profile = content_profile_load($type, $account->uid);
   if (!$profile) {
     return;
   }
   $fields = content_fields(NULL, $type);
-  
   foreach ($fields as $field_name => $field_attributes) {
     if (isset($profile->$field_name)) {
       $values = array();
@@ -54,15 +79,39 @@ function content_profile_load_profile(&$account, $type = NULL) {
       }
     }
   }
-  
-//  $account->title = $profile->title; // http://drupal.org/node/606364
 }
 
-function content_profile_realname_get_types() {
+/**
+ * Gets available types.
+ *
+ * Supplies the types supported by the module if the module supports types.
+ *
+ * @return
+ *   An array keyed by type with info.
+ */
+function hook_realname_get_types() {
   return content_profile_get_types('names');
 }
 
-function content_profile_realname_get_fields($current, $type) {
+/**
+ * Gets available fields.
+ *
+ * Supplies the fields supported by the module if the module supports fields.
+ *
+ * @param $current
+ *   An array with the currently used fields keyed by field.
+ * @param $type
+ *   An array containing the current type.
+ * @return
+ *   An associative array with two keys:
+ *   - "fields": Required. An array keyed by field name of fields as
+ *     associative arrays containing:
+ *     - "title": The title of the field
+ *     - "weight": The weight of the field
+ *     - "selected": A boolean value of whether the field is slected or not
+ *   - "links": Required. An array of field labels keyed by field name
+ */
+function hook_realname_get_fields($current, $type = NULL) {
   $fields = $links = array();
   $all_fields = content_fields(NULL, $type);
   if ($all_fields) {
@@ -106,3 +155,18 @@ function content_profile_realname_get_fields($current, $type) {
   return array('fields' => $fields, 'links' => $links);
 }
 
+/**
+ * Gets a name for a user
+ *
+ * Modules not supporting fields for name data has to
+ * implement this hook instead
+ *
+ * @param $account
+ *   An user object.
+ * @return
+ *   A string with the name or NULL.
+ */
+function hook_realname_make($account) {
+  $info = _connector_information_fetch($account);
+  return !empty($info['real name']) ? $info['real name'] : NULL;
+}

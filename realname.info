@@ -3,9 +3,9 @@ name = "RealName"
 description = "Use user profile fields to build a 'realname' field in a user object."
 core = 6.x
 
-; Information added by drupal.org packaging script on 2010-07-11
+; Information added by drupal.org packaging script on 2010-11-02
 version = "6.x-1.x-dev"
 core = "6.x"
 project = "realname"
-datestamp = "1278835463"
+datestamp = "1288657115"
 

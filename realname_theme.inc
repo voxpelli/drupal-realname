@@ -1,5 +1,5 @@
 <?php
-// $Id: realname_theme.inc,v 1.2.4.20 2010/05/26 20:34:45 nancyw Exp $
+// $Id: realname_theme.inc,v 1.2.4.23 2010/10/30 17:25:37 davereid Exp $
 
 /**
  * @file
@@ -18,7 +18,7 @@
  *     'picture' => whether or not to include the user's picture (default: FALSE)
  *        will not be done if 'plain' = TRUE.
  *     'homepage' => link may be to the user's homepage (default: TRUE)
- *     'levels' => include user level marking (default: TRUE)
+ *     'levels' => include user level marking (default: FALSE)
  *     'max_length' => maximum name length to show (default: from settings page)
  *     'not_ver' => whether to show "not verified" (default: from settings page)
  *     'allowed_tags' => an array of HTML tags that are allowed to remain in the name
@@ -35,7 +35,7 @@ function realname_username($object, $options = array()) {
     'plain' => FALSE,
     'picture' => FALSE,
     'homepage' => TRUE,
-    'levels' => TRUE,
+    'levels' => FALSE,
     'max_length' => variable_get('realname_max_username', 20),
     'not_ver' => variable_get('realname_notver', TRUE),
 //    'allowed_tags' => array('em', 'i', 'u', 'strong', 'b'),
@@ -43,18 +43,17 @@ function realname_username($object, $options = array()) {
   $options = array_merge($defaults, (array)$options);
 
   // If we have a user id but no realname, then make one.
-  if ($object->uid && empty($object->realname) && user_access('use realname')) {
+  if ($object->uid && !isset($object->realname) && user_access('use realname')) {
     $object->realname = realname_make_name($object);
   }
 
-  if ($object->uid && $object->realname) {
+  if ($object->uid && (!empty($object->realname) || !empty($object->name))) {
+    $name = !empty($object->realname) ? $object->realname : $object->name;
+
     // Shorten the name when it is too long or it will break many tables.
     $max_name = $options['max_length'];
-    if (drupal_strlen($object->realname) > $max_name) {
-      $name = drupal_substr($object->realname, 0, $max_name - 3) .'...';
-    }
-    else {
-      $name = $object->realname;
+    if (drupal_strlen($name) > $max_name) {
+      $name = drupal_substr($name, 0, $max_name - 3) .'...';
     }
 
     if (user_access('access user profiles') && !$options['plain']) {
@@ -63,7 +62,7 @@ function realname_username($object, $options = array()) {
         // If there are no roles in this object (e.g. a node), go get them.
         if (!isset($object->roles)) {
           $object->roles = array();
-          $result = db_query("SELECT r.rid, r.name FROM {users_roles} ur JOIN {role} r USING(rid) WHERE uid=%d", $object->uid);
+          $result = db_query("SELECT r.rid, r.name FROM {users_roles} ur JOIN {role} r USING(rid) WHERE ur.uid = %d", $object->uid);
           while ($row = db_fetch_object($result)) {
             $object->roles[$row->rid] = $row->name;
           }
@@ -75,8 +74,7 @@ function realname_username($object, $options = array()) {
             $pic = variable_get('realname_user_level_'. $rid, '');
             $roles[$rid] = empty($pic) ? '' : file_create_url($pic);
             // Make a nice css value out of the role title
-            $l_opts['attributes']['class'] .= form_clean_id(strtolower($role)) . ' ';
-
+            $l_opts['attributes']['class'][] = form_clean_id(strtolower($role));
           }
           if ($roles[$rid]) {
             $name .= '<img src="'. $roles[$rid] .'" alt="'. $role .'" title="'. $role .'" />';
@@ -96,6 +94,15 @@ function realname_username($object, $options = array()) {
         $title = t('View user profile.');
       }
       $l_opts['attributes']['title'] = $title;
+
+      // Convert the class attributes to a space-delimited string.
+      if (!empty($l_opts['attributes']['class'])) {
+        $l_opts['attributes']['class'] = implode(' ',  $l_opts['attributes']['class']);
+      }
+      else {
+        unset($l_opts['attributes']['class']);
+      }
+
       $output = l($name, $url, $l_opts);
       if ($options['picture']) {
         $output .= theme('user_picture', $object);
@@ -110,7 +117,7 @@ function realname_username($object, $options = array()) {
     // Sometimes modules display content composed by people who are not registered
     // members of the site (e.g. mailing list or news aggregator modules).
     // This clause enables modules to display the true author of the content.
-    if ($object->homepage && $options['homepage']) {
+    if (!empty($object->homepage) && $options['homepage'] && !$options['plain']) {
       $output = l($object->name, $object->homepage, array('attributes' => array('title' => t("View user's home page."))));
     }
     else {

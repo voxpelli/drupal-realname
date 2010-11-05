@@ -1,5 +1,5 @@
 <?php
-// $Id: realname.admin.inc,v 1.1.2.9 2009/10/08 20:50:31 nancyw Exp $
+// $Id: realname.admin.inc,v 1.1.2.11 2010/10/28 04:57:27 davereid Exp $
 
 /**
  * @file
@@ -26,7 +26,7 @@ function realname_admin_general() {
     '#title' => '<strong>'. t('Show realname in nodes') .'</strong>',
     '#description' => t('If this option is selected, the "Real name" will be used on node displays.'),
     '#default_value' => variable_get('realname_nodeapi', FALSE),
-    );
+  );
 
   if (variable_get('realname_profile_module', NULL) == 'content_profile') {
     $form['realname_use_title'] = array(
@@ -34,27 +34,27 @@ function realname_admin_general() {
       '#title' => '<strong>'. t('Add node title to available fields') .'</strong>',
       '#description' => t('This option allows you to include the profile title in the list of available fields.'),
       '#default_value' => variable_get('realname_use_title', FALSE),
-      );
+    );
   }
   else {
-    $form['realname_use_title'] = array('#type' => 'value', '#value' => FALSE);    
+    $form['realname_use_title'] = array('#type' => 'value', '#value' => FALSE);
   }
-  
-  if ( module_exists('views') ) {  
+
+  if (module_exists('views')) {
     $form['realname_view'] = array(
       '#type' => 'checkbox',
       '#title' => '<strong>'. t('Overwrite user fields in view to show realnames') .'</strong>',
       '#description' => t('This option will overwrite the default user name definition in Views in order to show Realnames without the need to modify Views. Remember to rebuild your Views cache if you change this option.'),
       '#default_value' => variable_get('realname_view', FALSE),
-      );
-  }  
+    );
+  }
 
   $form['realname_myacct'] = array(
     '#type' => 'textfield',
     '#title' => '<strong>'. t('Title for own account') .'</strong>',
     '#description' => t('This will be shown instead of "My account" on the user\'s own account pages and in the menu. If it is empty, the user\'s RealName will be shown.'),
     '#default_value' => variable_get('realname_myacct', t('My account')),
-    );
+  );
 
   $form['search'] = array(
     '#type' => 'fieldset',
@@ -62,7 +62,7 @@ function realname_admin_general() {
     '#description' => t('These settings control how RealName search will work.'),
     '#collapsible' => TRUE,
     '#collapsed' => FALSE,
-    );
+  );
 
   $search_enable = variable_get('realname_search_enable', FALSE);
   $user_disable = variable_get('realname_user_disable', FALSE);
@@ -75,21 +75,21 @@ function realname_admin_general() {
     '#title' => '<strong>'. t('Enable realname search') .'</strong>',
     '#description' => t('If this option is selected, the "Real name" searching will be allowed. The menus will be rebuilt if this setting changes.'),
     '#default_value' => $search_enable,
-    );
+  );
 
   $form['search']['realname_user_disable'] = array(
     '#type' => 'checkbox',
     '#title' => '<strong>'. t('Disable user search') .'</strong>',
     '#description' => t('If this option is selected, the standard "Users" search page will be disabled. The menus will be rebuilt if this setting changes.'),
     '#default_value' => $user_disable,
-    );
+  );
 
   $form['search']['realname_search_login'] = array(
     '#type' => 'checkbox',
     '#title' => '<strong>'. t('Include login name in search') .'</strong>',
     '#description' => t('Should the "Real name" search also index the login name?'),
     '#default_value' => variable_get('realname_search_login', FALSE),
-    );
+  );
 
   $form['theme'] = array(
     '#type' => 'fieldset',
@@ -97,14 +97,14 @@ function realname_admin_general() {
     '#description' => t('These settings control how "theme(\'username\', ...)" will work.'),
     '#collapsible' => TRUE,
     '#collapsed' => FALSE,
-    );
+  );
 
   $form['theme']['realname_theme'] = array(
     '#type' => 'checkbox',
     '#title' => '<strong>'. t('Override username theme') .'</strong>',
     '#description' => t('If this option is selected, the standard username theme function will be overriden to use the "Real name."'),
     '#default_value' => variable_get('realname_theme', TRUE),
-    );
+  );
 
   $form['theme']['realname_max_username'] = array(
     '#type' => 'textfield',
@@ -112,26 +112,26 @@ function realname_admin_general() {
     '#description' => t('Long usernames may "break" some tables or other displays; this setting limits the maximum length. Note that the core recommendation is 20.'),
     '#size' => 6,
     '#default_value' => variable_get('realname_max_username', 20),
-    );
+  );
 
   $form['theme']['realname_notver'] = array(
     '#type' => 'checkbox',
     '#title' => '<strong>'. t('Show "Not verified" for anonymous users') .'</strong>',
     '#description' => t('Drupal core adds "Not verified" for anonymous users, this option allows that to be turned off.'),
     '#default_value' => variable_get('realname_notver', TRUE),
-    );
+  );
 
   $form['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Save configuration'),
-    );
-    
+  );
+
   return $form;
 }
 
 function realname_admin_general_validate($form, &$form_state) {
   // If realname_search is not enabled, then we won't disable user_search.
-  if (!$form_state['values']['realname_search_enable'] && 
+  if (!$form_state['values']['realname_search_enable'] &&
     $form_state['values']['realname_user_disable']) {
     form_set_error('realname_user_disable', t('User search disable cannot be used if RealName search is not enabled.'));
   }
@@ -174,7 +174,7 @@ function realname_admin_bypass() {
   $form['warning'] = array(
     '#type' => 'markup',
     '#value' => '<div class="messages warning">'. t('<strong>WARNING</strong>: This form may cause errors if the instructions below are not followed or if you give an invalid form name or field name. Please do not remove the "comment_form" line.') .'</div>',
-    );
+  );
 
   $form['bypass_forms'] = array(
     '#type' => 'textarea',
@@ -183,12 +183,12 @@ function realname_admin_bypass() {
     '#default_value' => $bypass_list,
     '#description' => t('Enter one form per line. Each line should start with the form name. That should be followed by the name of the field to be reset to the username. If the field is a child field, include its full parent path, separated by spaces. For example: mymodule_form fieldset_1 fieldset_2 name'),
     '#required' => TRUE,
-    );
+  );
 
   $form['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Bypass these forms'),
-    );
+  );
 
   return $form;
 }
@@ -233,7 +233,7 @@ function realname_admin_module($form_state) {
     $form['module'] = array(
       '#type' => 'item',
       '#value' => t('You have chosen the "@module" module to provide data.', array('@module' => $module)),
-      );
+    );
     // Now show the types, if appropriate.
     $button_text = t('Use this content type');
     $form['type'] = array(
@@ -242,7 +242,7 @@ function realname_admin_module($form_state) {
       '#options' => $form_state['storage']['types'],
       '#default_value' => variable_get('realname_profile_type', NULL),
       '#required' => TRUE,
-      );
+    );
   }
   else {
     $button_text = t('Use this module');
@@ -252,7 +252,7 @@ function realname_admin_module($form_state) {
       '#options' => $choices,
       '#default_value' => variable_get('realname_profile_module', NULL),
       '#required' => TRUE,
-      );
+    );
   }
 
   $form['submit'] = array(
@@ -313,18 +313,19 @@ function realname_admin_fields() {
   $form['heading'] = array(
     '#type' => 'item',
     '#value' => $what,
-    );
+  );
 
   include_once(drupal_get_path('module', 'realname') .'/realname_'. $module .'.inc');
   $profile_fields = call_user_func('realname_'. $module .'_get_fields', $current, $type);
   $fields = $profile_fields['fields'];
-  $links = $profile_fields['links'];
   uasort($fields, '_realname_sort');
+  $links = $profile_fields['links'];
+  asort($links);
 
   $form['start_table'] = array(
     '#type' => 'markup',
     '#value' => '<table><tr><th>Select</th><th>Field name</th><th>Weight</th></tr>',
-    );
+  );
 
   $i = 0;
   foreach ($fields as $f_name => $values) {
@@ -333,76 +334,69 @@ function realname_admin_fields() {
       '#default_value' => $values['selected'],
       '#prefix' => '<tr><td align="center">',
       '#suffix' => '</td>',
-      );
-
+    );
     $form['field_name_'. $i] = array(
       '#type' => 'hidden',
       '#value' => $f_name,
-      );
-
+    );
     $form['field_title_'. $i] = array(
       '#type' => 'item',
       '#value' => $values['title'],
       '#prefix' => '<td>',
       '#suffix' => '</td>',
-      );
-
+    );
     $form['field_weight_'. $i] = array(
       '#type' => 'weight',
       '#delta' => 10,
       '#default_value' => $values['weight'],
       '#prefix' => '<td>',
       '#suffix' => '</td></tr>',
-      );
-
-    ++$i;
+    );
+    $i++;
   }
 
   $form['end_table'] = array(
     '#type' => 'markup',
     '#value' => '</table>',
-    );
+  );
 
   $form['realname_pattern'] = array(
     '#type' => 'textfield',
     '#field_prefix' => '<strong>'. t('Name Pattern') .'</strong> ',
-    '#description' => t('The determines how the fields will be used to create the "Real name." Use "%1" to refer to the first field, "%2" to refer to the second, etc..'),
+    '#description' => t('This determines how the fields will be used to create the "Real name." Use "%1" to refer to the first field, "%2" to refer to the second, etc.'),
     '#size' => 30,
     '#default_value' => variable_get('realname_pattern', '%1'),
-    );
+  );
 
   // If there were any URL fields, give a home page option.
-  if ($links) {
-    $links[''] = t('');
-    asort($links);
-    $form['homepage'] = array(
-      '#type' => 'fieldset',
-      '#title' => t('Homepage options'),
-      '#description' => t('There were URL fields in the profile. If one of these is a personal homepage link, you may choose to link to it rather than the user profile. Choose which field to use.'),
-      '#collapsible' => TRUE,
-      '#collapsed' => count($links) == 0,
-      );
+  $form['homepage'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Homepage options'),
+    '#description' => t('There were URL fields in the profile. If one of these is a personal homepage link, you may choose to link to it rather than the user profile. Choose which field to use.'),
+    '#collapsible' => TRUE,
+    '#collapsed' => count($links) == 0,
+    '#access' => !empty($links),
+  );
 
-    $form['homepage']['realname_homepage'] = array(
-      '#type' => 'select',
-      '#options' => $links,
-      '#title' => t('Link to homepage'),
-      '#description' => t('Select a personal homepage link, if appropriate.'),
-      '#default_value' => variable_get('realname_homepage', NULL),
-      );
+  $form['homepage']['realname_homepage'] = array(
+    '#type' => 'select',
+    '#options' => array('' => t('- None -')) + $links,
+    '#title' => t('Link to homepage'),
+    '#description' => t('Select a personal homepage link, if appropriate.'),
+    '#default_value' => variable_get('realname_homepage', ''),
+  );
 
-    $form['homepage']['realname_nofollow'] = array(
-      '#type' => 'checkbox',
-      '#title' => t('Spam link deterrent'),
-      '#description' => t('If enabled, Drupal will add rel="nofollow" to all links, as a measure to reduce the effectiveness of spam links. Note: this will also prevent valid links from being followed by search engines, therefore it is likely most effective when enabled for anonymous users.'),
-      '#default_value' => variable_get('realname_nofollow', FALSE),
-      );
-  }
+  $form['homepage']['realname_nofollow'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Spam link deterrent'),
+    '#description' => t('If enabled, Drupal will add rel="nofollow" to all links, as a measure to reduce the effectiveness of spam links. Note: this will also prevent valid links from being followed by search engines, therefore it is likely most effective when enabled for anonymous users.'),
+    '#default_value' => variable_get('realname_nofollow', FALSE),
+  );
 
   $form['submit'] = array(
     '#type' => 'submit',
     '#value' => t('Save'),
-    );
+  );
 
   return $form;
 }
@@ -418,7 +412,7 @@ function realname_admin_fields_submit($form, &$form_state) {
     if ($form_state['values']['field_select_'. $i]) {
       $fields[] = array('title' => $form_state['values']['field_name_'. $i], 'weight' => $form_state['values']['field_weight_'. $i]);
     }
-    ++$i;
+    $i++;
   }
   // A little hoop jumping to sort right.
   uasort($fields, '_realname_sort');
@@ -442,7 +436,7 @@ function realname_admin_fields_submit($form, &$form_state) {
 /**
  * Real names rebuild (in case of config change) handlers.
  */
- 
+
 /**
  * Menu callback: confirm rebuilding of realnames.
  */

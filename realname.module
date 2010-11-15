@@ -923,10 +923,10 @@ function _realname_make_name(&$account) {
     // Has the profile been loaded?
     if (!isset($account->{key($fields)})) {
       if (!module_hook($module, 'load_profile')) {
-        drupal_set_message(t('The profile load function (!module) was not found.', array('!module' => $load_func)), 'error');
+        drupal_set_message(t('The profile load function (!module) was not found.', array('!module' => $module . '_load_profile')), 'error');
         return $account->name;
       }
-      $load_func($account, $type);
+      module_invoke($module, 'load_profile', $account, $type);
       if ($profile_privacy) {
         profile_privacy_user('load', $edit, $account);
       }
